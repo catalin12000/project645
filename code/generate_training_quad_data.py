@@ -5,7 +5,7 @@ import os
 
 
 def generate_quad_traindata_from_bvh(src_bvh_folder, tar_traindata_folder):
-#     TODO:
+# TODO:
 
 def generate_bvh_from_quad_traindata(src_train_folder, tar_bvh_folder):
 # TODO:

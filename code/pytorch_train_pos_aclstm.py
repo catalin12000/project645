@@ -121,7 +121,7 @@ def train_one_iteraton(real_seq_np, model, optimizer, iteration, save_dance_fold
     seq_len=real_seq.size()[1]-1
     in_real_seq=real_seq[:, 0:seq_len]
 
-    predict_groundtruth_seq= torch.autograd.Variable(torch.FloatTensor(real_seq_dif_hip_x_z_np[:,1:seq_len+1].tolist())).cuda().view(real_seq_np.shape[0],-1)
+    predict_groundtruth_seq = torch.autograd.Variable(torch.FloatTensor(real_seq_dif_hip_x_z_np[:, 1:seq_len+1].tolist())).cuda().view(real_seq_np.shape[0], -1)
     
     predict_seq = model.forward(in_real_seq, Condition_num, Groundtruth_num)
     
@@ -142,9 +142,10 @@ def train_one_iteraton(real_seq_np, model, optimizer, iteration, save_dance_fold
     
     if(save_bvh_motion==True):
         ##save the first motion sequence int the batch.
-        gt_seq=np.array(predict_groundtruth_seq[0].data.tolist()).reshape(-1,In_frame_size)
-        last_x=0.0
-        last_z=0.0
+        gt_seq = np.array(predict_groundtruth_seq[0].data.tolist()).reshape(-1,In_frame_size)
+        last_x = 0.0
+        last_z = 0.0
+        # Change hip xyz previous hip location for ground truth sequence
         for frame in range(gt_seq.shape[0]):
             gt_seq[frame,Hip_index*3]=gt_seq[frame,Hip_index*3]+last_x
             last_x=gt_seq[frame,Hip_index*3]
@@ -155,6 +156,7 @@ def train_one_iteraton(real_seq_np, model, optimizer, iteration, save_dance_fold
         out_seq=np.array(predict_seq[0].data.tolist()).reshape(-1,In_frame_size)
         last_x=0.0
         last_z=0.0
+        # Change hip xyz based on previous hip locations for out seq
         for frame in range(out_seq.shape[0]):
             out_seq[frame,Hip_index*3]=out_seq[frame,Hip_index*3]+last_x
             last_x=out_seq[frame,Hip_index*3]
@@ -281,7 +283,4 @@ if not os.path.exists(write_bvh_motion_folder):
 dances= load_dances(dances_folder)
 
 train(dances, dance_frame_rate, batch, 100, read_weight_path, write_weight_folder,
-      write_bvh_motion_folder, in_frame, out_frame, hidden_size, total_iter=200000)
-
-
-
+      write_bvh_motion_folder, in_frame, out_frame, hidden_size, total_iter=100000)

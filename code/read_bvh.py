@@ -199,8 +199,9 @@ def get_train_data(bvh_filename):
     center[1]=0.0 #don't center the height
 
     new_train_data=augment_train_data(train_data, -center, [0,1,0, 0.0])
+
     return new_train_data
-          
+
 
 def write_frames(format_filename, out_filename, data):
     
