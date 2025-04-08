@@ -7,9 +7,10 @@ See the following link for more background:
 
 ### Prequisite
 
-You need to install python3.6 (python 2.7 should also be fine) and pytorch. You will also need to have transforms3d, which can be installed by using this command:
+If you running the code locally you can create the conda enviroment. Run the following commands:
 ```
 conda env create -f mai645.yml
+source activate mai645
 ```
 
 ### Data Preparation
