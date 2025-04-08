@@ -1,4 +1,4 @@
-# acLSTM_motion
+# Project - Character Motion Prediction
 This folder contains an implementation of acRNN written in Pytorch.
 
 See the following link for more background:
