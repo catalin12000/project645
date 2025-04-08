@@ -14,8 +14,12 @@ standard_bvh_file = "train_data_bvh/standard.bvh"
 weight_translation = 0.01
 skeleton, non_end_bones = read_bvh.read_bvh_hierarchy.read_bvh_hierarchy(standard_bvh_file)
 
+bvh_dir_path = None
+quad_enc_dir_path = None
+bvh_reconstructed_dir_path = None
+
 # Encode data from bvh to positional encoding
-generate_quad_traindata_from_bvh("train_data_bvh/martial/","train_data_quad/martial/")
+generate_quad_traindata_from_bvh(bvh_dir_path, quad_enc_dir_path)
 
 # Decode from positional to bvh
-generate_bvh_from_quad_traindata("train_data_quad/martial/", "test_data_quad_bvh/martial/",)
+generate_bvh_from_quad_traindata(quad_enc_dir_path, bvh_reconstructed_dir_path)

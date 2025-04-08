@@ -38,6 +38,7 @@ def parse_frames(bvh_filename):
    bvh_file.close()
    l = [lines.index(i) for i in lines if 'MOTION' in i]
    data_start=l[0]
+
    #data_start = lines.index('MOTION\n')
    first_frame  = data_start + 3
    
@@ -45,7 +46,7 @@ def parse_frames(bvh_filename):
    num_frames = len(lines) - first_frame
                                      
    data= np.zeros((num_frames,num_params))
-   
+
    for i in range(num_frames):
        line = lines[first_frame + i].split(' ')
        line = line[0:len(line)]
@@ -54,7 +55,7 @@ def parse_frames(bvh_filename):
        line_f = [float(e) for e in line]
        
        data[i,:] = line_f
-           
+
    return data
 
 
@@ -67,6 +68,7 @@ joint_index= get_pos_joints_index(sample_data[0],non_end_bones, skeleton)
    
 def get_frame_format_string(bvh_filename):
     bvh_file = open(bvh_filename, "r")
+
     lines = bvh_file.readlines()
     bvh_file.close()
     l = [lines.index(i) for i in lines if 'MOTION' in i]
@@ -157,7 +159,6 @@ def get_one_frame_training_format_data(raw_frame_data, non_end_bones, skeleton):
 
     for joint in pos_dic.keys():
         if(joint=='hip'):
-            
             new_data[i*3:i*3+3]=pos_dic[joint].reshape(3)
         else:
             new_data[i*3:i*3+3]=pos_dic[joint].reshape(3)- hip_pos.reshape(3)
@@ -173,8 +174,6 @@ def get_training_format_data(raw_data, non_end_bones, skeleton):
         new_frame=get_one_frame_training_format_data(frame,  non_end_bones, skeleton)
         new_data=new_data+[new_frame]
     return np.array(new_data)
-
-
 
 
 def get_weight_dict(skeleton):
@@ -201,7 +200,6 @@ def get_train_data(bvh_filename):
     new_train_data=augment_train_data(train_data, -center, [0,1,0, 0.0])
 
     return new_train_data
-
 
 def write_frames(format_filename, out_filename, data):
     
@@ -241,8 +239,7 @@ def write_xyz_to_bvh(xyz_motion, skeleton, non_end_bones, format_filename, outpu
         new_motion[0:3] = new_motion1[0:3]
 								
         out_data[i,:] = np.transpose(new_motion[:,np.newaxis])
-        
-    
+
     write_frames(format_filename, output_filename, out_data)
 
 def write_traindata_to_bvh(bvh_filename, train_data):
@@ -250,13 +247,8 @@ def write_traindata_to_bvh(bvh_filename, train_data):
     xyz_motion = []
     format_filename = standard_bvh_file
     for i in range(seq_length):
-        data = train_data[i]
         data = np.array([round(a,6) for a in train_data[i]])
-        #print data
-        #input(' ' )
-        position = data_vec_to_position_dic(data, skeleton)        
-        
-        
+        position = data_vec_to_position_dic(data, skeleton)
         xyz_motion.append(position)
 
         

@@ -5,6 +5,7 @@ from torch.autograd import Variable
 import numpy as np
 import random
 import read_bvh
+import argparse
 
 Hip_index = read_bvh.joint_index['hip']
 
@@ -109,9 +110,11 @@ class acLSTM(nn.Module):
 #numpy array real_seq_np: batch*seq_len*frame_size
 def train_one_iteraton(real_seq_np, model, optimizer, iteration, save_dance_folder, print_loss=False, save_bvh_motion=True):
 
-    #set hip_x and hip_z as the difference from the future frame to current frame
+    # set hip_x and hip_z as the difference from the future frame to current frame
+    # Subtract post (t+1) - t. Then, you will have the difference between each pose timestamp
     dif = real_seq_np[:, 1:real_seq_np.shape[1]] - real_seq_np[:, 0: real_seq_np.shape[1]-1]
     real_seq_dif_hip_x_z_np = real_seq_np[:, 0:real_seq_np.shape[1]-1].copy()
+
     # Replace the values with the difference of each step to the previus step
     real_seq_dif_hip_x_z_np[:,:,Hip_index*3]=dif[:,:,Hip_index*3]
     real_seq_dif_hip_x_z_np[:,:,Hip_index*3+2]=dif[:,:,Hip_index*3+2]
@@ -129,14 +132,13 @@ def train_one_iteraton(real_seq_np, model, optimizer, iteration, save_dance_fold
 
     # The loss function needs to change for each representation
     loss = model.calculate_loss(predict_seq, predict_groundtruth_seq)
-    
+
     loss.backward()
     
     optimizer.step()
     
     if(print_loss==True):
         print ("###########"+"iter %07d"%iteration +"######################")
-        print(loss)
         print ("loss: "+str(loss.detach().cpu().numpy()))
 
     
@@ -167,8 +169,6 @@ def train_one_iteraton(real_seq_np, model, optimizer, iteration, save_dance_fold
         read_bvh.write_traindata_to_bvh(save_dance_folder+"%07d"%iteration+"_gt.bvh", gt_seq)
         read_bvh.write_traindata_to_bvh(save_dance_folder+"%07d"%iteration+"_out.bvh", out_seq)
 
-
-
 #input a list of dances [dance1, dance2, dance3]
 #return a list of dance index, the occurence number of a dance's index is proportional to the length of the dance
 def get_dance_len_lst(dances):
@@ -193,11 +193,13 @@ def get_dance_len_lst(dances):
 def load_dances(dance_folder):
     dance_files=os.listdir(dance_folder)
     dances=[]
+    print('Loading motion files...')
     for dance_file in dance_files:
-        print ("load "+dance_file)
+        # print ("load "+dance_file)
         dance=np.load(dance_folder+dance_file)
-        print ("frame number: "+ str(dance.shape[0]))
         dances=dances+[dance]
+    print(len(dances), ' Motion files loaded')
+
     return dances
     
 # dances: [dance1, dance2, dance3,....]
@@ -240,47 +242,54 @@ def train(dances, frame_rate, batch, seq_len, read_weight_path, write_weight_fol
             for i in range(seq_len):
                 sample_seq=sample_seq+[dance[int(i*speed+start_id)]]
             
-            # augment the direction and position of the dance
+            # augment the direction and position of the dance, helps the model to not overfeed
             T=[0.1*(random.random()-0.5),0.0, 0.1*(random.random()-0.5)]
             R=[0,1,0,(random.random()-0.5)*np.pi*2]
             sample_seq_augmented=read_bvh.augment_train_data(sample_seq, T, R)
             dance_batch=dance_batch+[sample_seq_augmented]
-            
         dance_batch_np=np.array(dance_batch)
        
         
         print_loss=False
         save_bvh_motion=False
-        if(iteration % 1==0):
+        if(iteration % 20==0):
             print_loss=True
         if(iteration % 1000==0):
             save_bvh_motion=True
-            
-        train_one_iteraton(dance_batch_np, model, optimizer, iteration, write_bvh_motion_folder, print_loss, save_bvh_motion)
-        #end=time.time()
-        #print end-start
-        if(iteration%1000 == 0):
             path = write_weight_folder + "%07d"%iteration +".weight"
             torch.save(model.state_dict(), path)
-        
+            
+        train_one_iteraton(dance_batch_np, model, optimizer, iteration, write_bvh_motion_folder, print_loss, save_bvh_motion)
 
-read_weight_path = ""
-write_weight_folder = "train_weight_aclstm_martial/"
-write_bvh_motion_folder = "train_tmp_bvh_aclstm_martial/"
-dances_folder = "train_data_xyz/martial/"
-dance_frame_rate=60
-batch=32
-in_frame = 171
-out_frame = 171
-hidden_size = 1024
 
-if not os.path.exists(write_weight_folder):
-    os.makedirs(write_weight_folder)
-if not os.path.exists(write_bvh_motion_folder):
-    os.makedirs(write_bvh_motion_folder)
-    
+def main():
 
-dances= load_dances(dances_folder)
+    parser = argparse.ArgumentParser()
 
-train(dances, dance_frame_rate, batch, 100, read_weight_path, write_weight_folder,
-      write_bvh_motion_folder, in_frame, out_frame, hidden_size, total_iter=100000)
+    parser.add_argument('--dances_folder', type=str, required=True, help='Path for the training data')
+    parser.add_argument('--write_weight_folder', type=str, required=True, help='Path to store checkpoints')
+    parser.add_argument('--write_bvh_motion_folder', type=str, required=True, help='Path to store test generated bvh')
+    parser.add_argument('--read_weight_path', type=str, default="", help='Checkpoint model path')
+    parser.add_argument('--dance_frame_rate', type=int, default=60, help='Dance frame rate')
+    parser.add_argument('--batch_size', type=int, default=32, help='Batch size')
+    parser.add_argument('--in_frame', type=int, required=True, help='Input channel')
+    parser.add_argument('--out_frame', type=int, required=True, help='Output channels')
+    parser.add_argument('--hidden_size', type=int, default=1024, help='Checkpoint model path')
+    parser.add_argument('--seq_len', type=int, default=100, help='Checkpoint model path')
+    parser.add_argument('--total_iterations', type=int, default=100000, help='Checkpoint model path')
+
+    args = parser.parse_args()
+
+
+    if not os.path.exists(args.write_weight_folder):
+        os.makedirs(args.write_weight_folder)
+    if not os.path.exists(args.write_bvh_motion_folder):
+        os.makedirs(args.write_bvh_motion_folder)
+
+    dances= load_dances(args.dances_folder)
+
+    train(dances, args.dance_frame_rate, args.batch_size, args.seq_len, args.read_weight_path, args.write_weight_folder,
+          args.write_bvh_motion_folder, args.in_frame, args.out_frame, args.hidden_size, total_iter=args.total_iterations)
+
+if __name__ == '__main__':
+    main()

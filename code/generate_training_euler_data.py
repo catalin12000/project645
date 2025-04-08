@@ -17,8 +17,12 @@ skeleton, non_end_bones = read_bvh.read_bvh_hierarchy.read_bvh_hierarchy(standar
 
 print('skeleton: ', skeleton)
 
+bvh_dir_path = None
+euler_enc_dir_path = None
+bvh_reconstructed_dir_path = None
+
 # Encode data from bvh to positional encoding
-generate_euler_traindata_from_bvh("train_data_bvh/martial/","train_data_euler/martial/")
+generate_euler_traindata_from_bvh(bvh_dir_path, euler_enc_dir_path)
 
 # Decode from positional to bvh
-generate_bvh_from_euler_traindata("train_data_euler/martial/", "test_data_euler_bvh/martial/")
+generate_bvh_from_euler_traindata(euler_enc_dir_path, bvh_reconstructed_dir_path)

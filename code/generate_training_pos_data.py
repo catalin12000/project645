@@ -25,13 +25,17 @@ def generate_pos_bvh_from_traindata(src_train_folder, tar_bvh_folder):
             if(dance_name[name_len-4: name_len]==".npy"):
                 dance=np.load(src_train_folder+dance_name)
                 dance2=[]
-                for i in range(int(dance.shape[0]/8)):
-                    dance2=dance2+[dance[i*8]]
+                for i in range(int(dance.shape[0])):
+                    dance2=dance2+[dance[i]]
+
                 read_bvh.write_traindata_to_bvh(tar_bvh_folder+dance_name+".bvh", np.array(dance2))
 
+bvh_dir_path = "train_data_bvh/martial/"
+pos_enc_dir_path = "train_data_pos/martial/"
+bvh_reconstructed_dir_path = "reconstructed_bvh_data_pos/martial/"
 
 # Encode data from bvh to positional encoding
-generate_pos_traindata_from_bvh("train_data_bvh/martial/","train_data_xyz/martial/")
+generate_pos_traindata_from_bvh(bvh_dir_path, pos_enc_dir_path)
 
 # Decode from positional to bvh
-generate_pos_bvh_from_traindata("train_data_xyz/martial/", "test_data_xyz_bvh/martial/",)
+generate_pos_bvh_from_traindata(pos_enc_dir_path, bvh_reconstructed_dir_path)
