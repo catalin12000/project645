@@ -19,7 +19,8 @@ import read_bvh_hierarchy
 
 import rotation2xyz as helper
 from rotation2xyz import *
-
+import functools
+import read_bvh_hierarchy
 
 
 def get_pos_joints_index(raw_frame_data, non_end_bones, skeleton):
@@ -280,7 +281,157 @@ def get_pos_dic(frame, joint_index):
 #######################################################
 #################### Write train_data to bvh###########                
 
+#from euler
 
+def get_train_data_euler(bvh_filepath):
+    """Encode BVH to Euler format: [hip_pos_scaled, joint_rotations]"""
+    import read_bvh_hierarchy
+    from os.path import splitext
+
+    skeleton, _ = read_bvh_hierarchy.read_bvh_hierarchy(bvh_filepath)
+    raw_frames = parse_frames(bvh_filepath)
+
+    joint_order = joint_index
+    frame_size = len(joint_order) * 3
+    hip_idx = joint_order['hip']
+
+    processed_frames = []
+
+    for raw_frame in raw_frames:
+        frame_out = np.zeros(frame_size)
+        offset = 0
+        rot_map = {}
+
+        for joint_name, joint in skeleton.items():
+            num_channels = len(joint['channels'])
+            joint_data = raw_frame[offset:offset + num_channels]
+            offset += num_channels
+
+            pos_map = {}
+            rot_xyz = {}
+
+            for i, ch in enumerate(joint['channels']):
+                val = joint_data[i]
+                if 'position' in ch:
+                    pos_map[ch[0]] = val
+                elif 'rotation' in ch:
+                    rot_xyz[ch[0]] = val
+
+            if joint_name == 'hip':
+                hip_pos = np.array([
+                    pos_map.get('X', 0.0),
+                    pos_map.get('Y', 0.0),
+                    pos_map.get('Z', 0.0)
+                ]) * weight_translation
+                frame_out[hip_idx * 3 : hip_idx * 3 + 3] = hip_pos
+
+            if joint_name in joint_order:
+                rot = [
+                    rot_xyz.get('X', 0.0),
+                    rot_xyz.get('Y', 0.0),
+                    rot_xyz.get('Z', 0.0)
+                ]
+                if joint_name != 'hip':  # hip's slot already taken by pos
+                    start = joint_order[joint_name] * 3
+                    frame_out[start:start+3] = rot
+
+        processed_frames.append(frame_out)
+
+    return np.array(processed_frames)
+
+
+def write_traindata_to_bvh_euler(out_filepath, data_np_array):
+    """Decode Euler-format .npy into a BVH file."""
+    import read_bvh_hierarchy
+
+    skeleton, _ = read_bvh_hierarchy.read_bvh_hierarchy(standard_bvh_file)
+    joint_order = joint_index
+    hip_idx = joint_order['hip']
+
+    reconstructed = []
+
+    for frame in data_np_array:
+        bvh_frame = []
+
+        hip_unscaled = frame[hip_idx*3:hip_idx*3+3] / weight_translation
+        joint_rot_map = {}
+
+        for name, idx in joint_order.items():
+            start = idx * 3
+            if name == 'hip':
+                continue  # handled separately
+            joint_rot_map[name] = frame[start:start+3].tolist()
+
+        joint_rot_map['hip'] = [0.0, 0.0, 0.0]
+
+        for joint in skeleton:
+            spec = skeleton[joint]
+            angles = joint_rot_map.get(joint, [0.0, 0.0, 0.0])
+            for ch in spec['channels']:
+                if joint == 'hip':
+                    if ch == 'Xposition': bvh_frame.append(hip_unscaled[0])
+                    elif ch == 'Yposition': bvh_frame.append(hip_unscaled[1])
+                    elif ch == 'Zposition': bvh_frame.append(hip_unscaled[2])
+                    elif ch == 'Xrotation': bvh_frame.append(angles[0])
+                    elif ch == 'Yrotation': bvh_frame.append(angles[1])
+                    elif ch == 'Zrotation': bvh_frame.append(angles[2])
+                else:
+                    if ch == 'Xrotation': bvh_frame.append(angles[0])
+                    elif ch == 'Yrotation': bvh_frame.append(angles[1])
+                    elif ch == 'Zrotation': bvh_frame.append(angles[2])
+        reconstructed.append(bvh_frame)
+
+    write_frames(standard_bvh_file, out_filepath, np.array(reconstructed))
+
+#for quad
+
+import transforms3d.quaternions as tfs_quat
+import transforms3d.euler as tfs_euler
+import numpy as np
+
+
+def write_traindata_to_bvh_quaternion(out_filepath, quat_data_np):
+    from read_bvh import joint_index, weight_translation, standard_bvh_file, write_frames
+
+    skeleton, _ = read_bvh_hierarchy.read_bvh_hierarchy(standard_bvh_file)
+    joint_order = joint_index
+    hip_idx = joint_order['hip']
+    
+    reconstructed = []
+
+    for frame in quat_data_np:
+        frame_line = []
+        hip_pos = frame[0:3] / weight_translation
+
+        for joint in skeleton:
+            joint_spec = skeleton[joint]
+            if joint in joint_order:
+                idx = joint_order[joint]
+                quat = frame[3 + idx * 4 : 3 + idx * 4 + 4]
+                R = tfs_quat.quat2mat(quat)
+                order = ''.join([ch[0].upper() for ch in joint_spec['channels'] if 'rotation' in ch.lower()])
+                if len(order) != 3:
+                    order = 'ZYX'
+                angles = tfs_euler.mat2euler(R, axes='s' + order.lower())
+                eulers = np.degrees(angles)
+            else:
+                eulers = [0.0, 0.0, 0.0]
+
+            for ch in joint_spec['channels']:
+                if 'position' in ch.lower():
+                    if joint == 'hip':
+                        if ch.lower() == 'xposition': frame_line.append(hip_pos[0])
+                        elif ch.lower() == 'yposition': frame_line.append(hip_pos[1])
+                        elif ch.lower() == 'zposition': frame_line.append(hip_pos[2])
+                    else:
+                        frame_line.append(0.0)
+                elif 'rotation' in ch.lower():
+                    axis = ch[0].upper()
+                    frame_line.append(eulers[['X', 'Y', 'Z'].index(axis)])
+        
+        reconstructed.append(frame_line)
+
+    write_frames(standard_bvh_file, out_filepath, np.array(reconstructed))
 
 def vector2string(data):
     s=' '.join(map(str, data))
